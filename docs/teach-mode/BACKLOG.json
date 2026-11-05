@@ -30,7 +30,7 @@
   ],
   "tasks": [
     {"id":"G0.01","title":"Create authentic Code-Glider fork","depends_on":[],"status":"completed","output":"Code-Glider/qz-browser-agent","accept":"GitHub reports fork=true, parent=alibaba/qz-browser-agent, writable main, pinned upstream SHA"},
-    {"id":"G0.02","title":"Commit plan, audit and backlog on dedicated branch","depends_on":["G0.01"],"status":"ready_after_fork","output":"docs/teach-mode/{PLAN.md,UPSTREAM_AUDIT.md,BACKLOG.json}","accept":"GitHub branch docs/teach-mode-plan contains byte-checked documents; main unchanged"},
+    {"id":"G0.02","title":"Commit plan, audit and backlog on dedicated branch","depends_on":["G0.01"],"status":"completed","output":"docs/teach-mode/{PLAN.md,UPSTREAM_AUDIT.md,BACKLOG.json}","accept":"GitHub branch docs/teach-mode-plan contains byte-checked documents; main unchanged"},
     {"id":"G0.03","title":"Establish cloud baseline and no-secret fixture runner","depends_on":["G0.01"],"status":"planned","output":"Cloud CI evidence","accept":"npm ci, typecheck, appropriate unit/build tests complete with recorded SHA and logs; Chrome test fixture available"},
     {"id":"G0.04","title":"Triage qz open PRs #15 #16 #17 and issues #8 #18","depends_on":["G0.03"],"status":"planned","output":"Baseline decision log","accept":"Each applicable fix reproduced, reviewed and tested independently; no blind PR merge; Firefox coverage explicitly scoped"},
     {"id":"G0.05","title":"Create simple external trace adapter with synthetic events","depends_on":["G0.03"],"status":"planned","output":"Prototype adapter and fixture","accept":"One browser demonstration normalizes to trace V1 preserving pre/post state and event provenance"},

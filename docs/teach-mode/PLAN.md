@@ -1,6 +1,6 @@
 # QZ Teach Mode — cloud-first implementation plan
 
-**Status:** Design draft; genuine GitHub fork verified; upstream audit complete for selected risks; no implementation merged.
+**Status:** Design and audit committed on `docs/teach-mode-plan`; G0 cloud baseline not yet verified; no implementation merged.
 **Prepared:** 2026-11-05
 **Intended destination:** `Code-Glider/qz-browser-agent` (verified genuine fork of `alibaba/qz-browser-agent`)
 **Base surveyed:** upstream qz `1aaa6ee2d1fb`, branch `main`
@@ -357,6 +357,6 @@ When the condition occurs, provide **one concrete test**, exact files/commit, wh
 ## 14. Immediate next actions and current blocker
 
 1. **GitHub fork verified:** GitHub API confirms `Code-Glider/qz-browser-agent` is writable, `fork=true`, `parent.full_name=alibaba/qz-browser-agent`, default branch `main` at `1aaa6ee2d1fb5a948ff57d57b55de96f72299fb9`.
-2. Create docs branch `docs/teach-mode-plan` from pinned `main`; commit `PLAN.md`, `UPSTREAM_AUDIT.md` and `BACKLOG.json` under `docs/teach-mode/`.
-3. Start G0 on `feature/teach-mode-g0` in a cloud workspace, with synthetic test fixtures and no production credentials.
+2. **Documentation committed:** `docs/teach-mode-plan` contains `PLAN.md`, `UPSTREAM_AUDIT.md` and `BACKLOG.json` under `docs/teach-mode/`. The branch was created from pinned `main` without changing `main`.
+3. **Next:** start G0 cloud baseline on `feature/teach-mode-g0` with synthetic test fixtures and no production credentials. The current scratch runner has Node.js 24, but `npm ci --offline` cannot complete because the locked `zod-to-json-schema` tarball is not cached; use an authorized cloud runner with npm registry access. This is an environment cache limitation, not evidence of a qz test failure.
 

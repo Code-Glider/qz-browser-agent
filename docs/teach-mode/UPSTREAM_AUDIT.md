@@ -130,7 +130,7 @@ These are our *project priorities*, not upstream maintainers' severity labels.
 - [ ] Reproduce each selected failure on isolated cloud Chromium fixture.
 - [ ] Inspect code diffs and tests before applying any upstream PR logic.
 - [x] Create actual GitHub fork under `Code-Glider` and verify upstream association.
-- [ ] Commit the audit and plan to the dedicated docs branch.
+- [x] Commit the audit and plan to the dedicated docs branch while preserving `main`.
 - [ ] Prove current qz production Chrome and Firefox baseline in CI; mark Firefox unsupported until green.
 - [ ] Complete independent acceptance and security test results; no implementation or test pass is claimed in this audit.
 
