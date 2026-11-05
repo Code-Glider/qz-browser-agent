@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "project": "qz-teach-mode",
+  "generated_at": "2026-11-05",
+  "target_repository": "Code-Glider/qz-browser-agent",
+  "target_repository_status": "fork_verified",
+  "upstream_repository": "alibaba/qz-browser-agent",
+  "upstream_baseline": "1aaa6ee2d1fb",
+  "strategy": "cloud_first_deterministic_replay",
+  "documents": ["PLAN.md", "UPSTREAM_AUDIT.md"],
+  "policies": {
+    "environment": "github_and_disposable_cloud_runners_first",
+    "no_local_until": "cloud_unreproducible_critical_user_environment_behavior",
+    "default_branch": "main_tracks_upstream",
+    "docs_branch": "docs/teach-mode-plan",
+    "feature_prefix": "feature/teach-",
+    "test_policy": "qz_AGENTS.md_tiered_checks",
+    "provenance": "pin_shas_and_preserve_redacted_raw_events",
+    "permissions": "never_exceed_human_approved_tool_and_domain_scope",
+    "release": "requires_separate_user_authorization"
+  },
+  "gates": [
+    {"id": "G0", "name": "Fork, audit, baseline, synthetic PoC", "exit": "Real fork and docs branch; cloud baseline; one demonstration compiled and replayed with verified output and zero replay model calls"},
+    {"id": "G1", "name": "Native recorder", "exit": "Structured capture including form, frame, secret and cancellation regressions; no leaks"},
+    {"id": "G2", "name": "Compiler and review", "exit": "Strict IR, parameter provenance, human review, immutable allowed scope, successful round trip"},
+    {"id": "G3", "name": "Deterministic browser interpreter", "exit": "Correct tab/frame, dynamic recovery, no unintended side effects, zero per-step model calls"},
+    {"id": "G4", "name": "Independent verification and repair", "exit": "Fault injection rejects false success, duplicate writes, late writes and uncertain commits"},
+    {"id": "G5", "name": "Skill export, CLI/MCP and cloud beta", "exit": "Portable invocation through qz; cloud package/release gates green; explicit release approval"},
+    {"id": "G6", "name": "Optional desktop/video/multi-surface", "exit": "Separate authorization, architecture and qualification"}
+  ],
+  "tasks": [
+    {"id":"G0.01","title":"Create authentic Code-Glider fork","depends_on":[],"status":"completed","output":"Code-Glider/qz-browser-agent","accept":"GitHub reports fork=true, parent=alibaba/qz-browser-agent, writable main, pinned upstream SHA"},
+    {"id":"G0.02","title":"Commit plan, audit and backlog on dedicated branch","depends_on":["G0.01"],"status":"ready_after_fork","output":"docs/teach-mode/{PLAN.md,UPSTREAM_AUDIT.md,BACKLOG.json}","accept":"GitHub branch docs/teach-mode-plan contains byte-checked documents; main unchanged"},
+    {"id":"G0.03","title":"Establish cloud baseline and no-secret fixture runner","depends_on":["G0.01"],"status":"planned","output":"Cloud CI evidence","accept":"npm ci, typecheck, appropriate unit/build tests complete with recorded SHA and logs; Chrome test fixture available"},
+    {"id":"G0.04","title":"Triage qz open PRs #15 #16 #17 and issues #8 #18","depends_on":["G0.03"],"status":"planned","output":"Baseline decision log","accept":"Each applicable fix reproduced, reviewed and tested independently; no blind PR merge; Firefox coverage explicitly scoped"},
+    {"id":"G0.05","title":"Create simple external trace adapter with synthetic events","depends_on":["G0.03"],"status":"planned","output":"Prototype adapter and fixture","accept":"One browser demonstration normalizes to trace V1 preserving pre/post state and event provenance"},
+    {"id":"G0.06","title":"Compile and replay smallest read-only workflow using existing qz tools","depends_on":["G0.05"],"status":"planned","output":"Synthetic PoC receipts","accept":"No model calls during healthy replay; verified artifact; isolation and timeout test"},
+
+    {"id":"G1.01","title":"Declare Teach Mode capability and narrow SDK contracts","depends_on":["G0.06"],"status":"planned","output":"src/capabilities/teach/index.ts and contracts","accept":"Static contribution discovery passes; no cross-runtime or permissions escape"},
+    {"id":"G1.02","title":"Create versioned raw event and normalized TraceV1 schemas","depends_on":["G1.01"],"status":"planned","output":"src/shared/teach/trace.ts","accept":"Strict parse, migration and lossless redacted raw→derived origin mapping tests"},
+    {"id":"G1.03","title":"Implement isolated content event listeners and teardown","depends_on":["G1.02"],"status":"planned","output":"src/content/teach/capture.ts","accept":"User-generated click/fill/press/select/nav/scroll captured; no duplicate listeners on resume or restart"},
+    {"id":"G1.04","title":"Implement redaction before persistence, transport and model input","depends_on":["G1.03"],"status":"planned","output":"Redaction functions and canary tests","accept":"Password, OTP, token, sensitive textarea/select/URL/screenshot canaries never leave allowed boundary; record is incomplete on uncertain masking"},
+    {"id":"G1.05","title":"Implement robust target evidence and frame identity","depends_on":["G1.03"],"status":"planned","output":"src/content/teach/locator.ts","accept":"Semantic labels, CSS escaping, frame/OOPIF/shadow identity tested; mismatches abstain"},
+    {"id":"G1.06","title":"Reduce raw events to state→action→result trace","depends_on":["G1.04","G1.05"],"status":"planned","output":"Pure reducer and reducer tests","accept":"Submit/reset/image clicks and rich-text newlines preserved; redirects/typing coalesced with origin mapping"},
+    {"id":"G1.07","title":"Add session-bound chunked trace store and cancellation barriers","depends_on":["G1.02","G1.06"],"status":"planned","output":"src/background/teach/repository.ts","accept":"Bounded memory/bytes, terminal incomplete state, no writes after revoked lease and restart recovery tests"},
+    {"id":"G1.08","title":"Add visible Start/Pause/Stop/Review UI and permission scope","depends_on":["G1.07"],"status":"planned","output":"Capability UI and metadata","accept":"User sees capture scope; no implicit recording; stop/abort disposes listeners; light/dark UI smoke"},
+    {"id":"G1.09","title":"Run Chrome recorder regression suite","depends_on":["G1.08"],"status":"planned","output":"Cloud browser test report","accept":"All relevant UPSTREAM_AUDIT P0/P1 recorder fixtures pass three clean seeded runs"},
+
+    {"id":"G2.01","title":"Define strictly validated WorkflowV1 typed IR and migrations","depends_on":["G1.09"],"status":"planned","output":"src/shared/teach/workflow.ts","accept":"Unknown operations rejected; stable error codes; migration round-trip; deterministic hash"},
+    {"id":"G2.02","title":"Implement parameter extraction and provenance constraints","depends_on":["G2.01"],"status":"planned","output":"Compiler parameter normalizer","accept":"Typed inputs limited to reviewed fields; hostile page text cannot override operator inputs"},
+    {"id":"G2.03","title":"Compile one demonstration to straight-line workflow","depends_on":["G2.01","G2.02"],"status":"planned","output":"src/background/teach/compiler.ts","accept":"Provider-independent prompt/structured parser; no false loops/branches from one sample; unsupported steps flagged"},
+    {"id":"G2.04","title":"Add human step/variable/tool review and immutable approvals","depends_on":["G2.03"],"status":"planned","output":"Review UI and approval policy","accept":"No generated tool or domain pattern can exceed approved scope, even through wildcard narrowing"},
+    {"id":"G2.05","title":"Add compiler version, trace provenance and round-trip tests","depends_on":["G2.04"],"status":"planned","output":"Compiler test results","accept":"Same fixtures reproduce same workflow structure within pinned deterministic normalization; no credentials in output"},
+
+    {"id":"G3.01","title":"Implement typed interpreter using existing qz browser runner","depends_on":["G2.05"],"status":"planned","output":"src/background/teach/replay.ts","accept":"No arbitrary generated JS; known commands only; zero model calls healthy path"},
+    {"id":"G3.02","title":"Implement role/name/context locator ranking and uniqueness","depends_on":["G3.01"],"status":"planned","output":"Target resolver and tests","accept":"Duplicate labels and dynamic DOM either resolve exact intended element or abstain"},
+    {"id":"G3.03","title":"Implement frame/OOPIF, tab ownership and navigation handling","depends_on":["G3.02"],"status":"planned","output":"Cross-document execution tests","accept":"Child-frame keyboard stays in child frame; no stale document action; popup/tab rights enforced"},
+    {"id":"G3.04","title":"Implement action deadlines, settle predicates, AbortSignal and lease checks","depends_on":["G3.01"],"status":"planned","output":"Run lifecycle and fault tests","accept":"Stop revokes writes; no zombie actions; non-idempotent writes never blindly retried"},
+    {"id":"G3.05","title":"Prove deterministic replay across dynamic synthetic sites","depends_on":["G3.03","G3.04"],"status":"planned","output":"Chrome E2E receipts","accept":"Every fixture has explicit verified or abstained outcome; model calls zero on healthy runs"},
+
+    {"id":"G4.01","title":"Define verifier contract and typed step receipts","depends_on":["G3.05"],"status":"planned","output":"src/shared/teach/receipt.ts","accept":"Observed, verified, unverified, failed and uncertain states cannot be conflated"},
+    {"id":"G4.02","title":"Verify file downloads and synthetic record changes independently","depends_on":["G4.01"],"status":"planned","output":"src/background/teach/verifier.ts","accept":"Hash/size/type and exact ID/version read-back; partial/paginated reads cannot certify"},
+    {"id":"G4.03","title":"Model uncertain commits and idempotent safe resume","depends_on":["G4.01","G4.02"],"status":"planned","output":"Reconciliation state machine","accept":"Timeout-after-save, duplicate and late-write fixtures never yield false verified or second write"},
+    {"id":"G4.04","title":"Implement model-assisted repair as candidate revision","depends_on":["G4.03"],"status":"planned","output":"Repair/review boundary","accept":"Model cannot mutate approved Skill or permissions; repair applies only after reviewed tested revision"},
+    {"id":"G4.05","title":"Run adversarial verification and security fault campaign","depends_on":["G4.04"],"status":"planned","output":"G4 fault report","accept":"No reproduced secret leak, permission escalation, wrong-record write, duplicate commit or stale-epoch mutation"},
+
+    {"id":"G5.01","title":"Package SKILL.md, workflow, manifest, inputs, tests and provenance","depends_on":["G4.05"],"status":"planned","output":"Skill archive with hashes","accept":"Strict paths, reviewed tool scopes, deterministic build, licenses and no secrets"},
+    {"id":"G5.02","title":"Expose typed workflow CLI/MCP calls through existing qz bridge","depends_on":["G5.01"],"status":"planned","output":"CLI/MCP integration contract","accept":"Same workflow callable from Codex/Claude/Hermes-compatible clients without rewriting it"},
+    {"id":"G5.03","title":"Add user-friendly practice and run receipts UI","depends_on":["G5.01"],"status":"planned","output":"Side Panel timeline, review and error recovery","accept":"Actual vs expected states visible, with download/open verification and accessible controls"},
+    {"id":"G5.04","title":"Cloud Chrome packaging, regression and compatibility gate","depends_on":["G5.02","G5.03"],"status":"planned","output":"CI artifacts and report","accept":"Typecheck, focused units, contracts, browser E2E, Chrome package suite; Firefox only when specifically claimed"},
+    {"id":"G5.05","title":"Prepare reviewed cloud beta and explicit release decision","depends_on":["G5.04"],"status":"planned","output":"Release candidate notes and rollback plan","accept":"No tag/release without authorization; known limits, exact commit and evidence documented"},
+
+    {"id":"G6.01","title":"Evaluate optional desktop companion and video import separately","depends_on":["G5.05"],"status":"deferred","output":"New decision record and threat model","accept":"Requires explicit scope/permissions and separate cloud qualification"},
+    {"id":"G6.02","title":"Evaluate multi-demo branches, loops and subflows","depends_on":["G5.05"],"status":"deferred","output":"Conditional workflow IR proposal","accept":"No inference of unsupported branches from a single demonstration; guarded proof tests"},
+    {"id":"G6.03","title":"Determine if real-profile local qualification is unavoidable","depends_on":["G5.05"],"status":"deferred","output":"One scoped user test request if needed","accept":"Cloud alternatives exhausted, exact test and rollback provided before involving a local drive"}
+  ]
+}
