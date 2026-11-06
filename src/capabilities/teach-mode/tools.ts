@@ -1,6 +1,22 @@
 import type { ToolContext, ToolExtensionAPI } from "#sdk/background";
 import { MAX_TEACH_EVENTS, compileTeachRecording, safePageScope, validateTeachInputs, validateTeachWorkflow } from "./workflow.js";
-import { operateTeachStep, startTeachCapture, stopTeachCapture } from "./page-runtime.js";
+
+/** Runs inside Chrome's isolated world. Do not add captured variables or background imports. */
+function invokeTeachRuntime(operation: "start" | "stop" | "step", args: unknown[]): unknown {
+  const scope = globalThis as typeof globalThis & {
+    __qzTeachRuntimeV1?: { start(...values: unknown[]): unknown; stop(...values: unknown[]): unknown; step(...values: unknown[]): unknown };
+  };
+  const runtime = scope.__qzTeachRuntimeV1;
+  if (!runtime) return { ok: false, code: "TEACH_RUNTIME_UNAVAILABLE" };
+  if (operation === "start") return runtime.start(...args);
+  if (operation === "stop") return runtime.stop(...args);
+  if (operation === "step") return runtime.step(...args);
+  return { ok: false, code: "TEACH_UNKNOWN_OPERATION" };
+}
+
+interface PageStart { ok: boolean; code?: string; pageScope?: string }
+interface PageStop { ok: boolean; code?: string; recording?: unknown }
+interface PageStep { ok: boolean; code: string; verified: boolean }
 
 /** The first slice of Teach Mode: single-document capture, portable workflow, guarded replay. */
 export default function registerTeachTools(qz: ToolExtensionAPI): void {
@@ -18,17 +34,23 @@ export default function registerTeachTools(qz: ToolExtensionAPI): void {
     if (signal?.aborted) throw new ToolExecutionError("OPERATION_ABORTED", "Teach Mode was cancelled.");
   }
 
-  async function inject<Args extends unknown[], Return>(tabId: number, func: (...args: Args) => Return, args: Args, signal?: AbortSignal): Promise<Awaited<Return>> {
+  async function installPageRuntime(tabId: number, signal?: AbortSignal): Promise<void> {
+    assertActive(signal);
+    await chrome.scripting.executeScript({ target: { tabId, allFrames: false }, world: "ISOLATED",
+      files: ["content/teach-mode-runtime.js"] });
+    assertActive(signal);
+  }
+
+  async function invokePage<Return>(tabId: number, operation: "start" | "stop" | "step", args: unknown[], signal?: AbortSignal): Promise<Return> {
     assertActive(signal);
     const result = await chrome.scripting.executeScript({
-      target: { tabId, allFrames: false }, world: "ISOLATED",
-      func, args,
+      target: { tabId, allFrames: false }, world: "ISOLATED", func: invokeTeachRuntime, args: [operation, args],
     });
     assertActive(signal);
     if (result.length !== 1 || result[0]?.result === undefined) {
       throw new ToolExecutionError("TEACH_PAGE_UNAVAILABLE", "The page did not return a Teach Mode response.");
     }
-    return result[0].result as Awaited<Return>;
+    return result[0].result as Return;
   }
 
   function parseJson(input: string | undefined, label: string, optional = false): unknown {
@@ -68,21 +90,22 @@ The initial recorder is limited to the top frame and a single document. It NEVER
       assertActive(signal);
       const tab = await chrome.tabs.get(target);
       const scope = safePageScope(tab.url);
+      await installPageRuntime(target, signal);
 
       if (action === "start") {
         const id = crypto.randomUUID();
-        let result: Awaited<ReturnType<typeof startTeachCapture>>;
-        try { result = await inject(target, startTeachCapture, [id, MAX_TEACH_EVENTS], signal); }
+        let result: PageStart;
+        try { result = await invokePage<PageStart>(target, "start", [id, MAX_TEACH_EVENTS], signal); }
         catch (error) {
           // A cancelled injection may already have installed listeners. Revoke them explicitly.
           await chrome.scripting.executeScript({ target: { tabId: target, allFrames: false },
-            world: "ISOLATED", func: stopTeachCapture, args: [id] }).catch(() => undefined);
+            world: "ISOLATED", func: invokeTeachRuntime, args: ["stop", [id]] }).catch(() => undefined);
           throw error;
         }
         if (!result.ok) throw new ToolExecutionError(result.code || "TEACH_START_FAILED", "Cannot record this page.");
         if (result.pageScope !== scope) {
           await chrome.scripting.executeScript({ target: { tabId: target, allFrames: false },
-            world: "ISOLATED", func: stopTeachCapture, args: [id] }).catch(() => undefined);
+            world: "ISOLATED", func: invokeTeachRuntime, args: ["stop", [id]] }).catch(() => undefined);
           throw new ToolExecutionError("TEACH_PAGE_SCOPE_CHANGED", "The page navigated while recording was starting.");
         }
         return { ok: true, action, recordingId: id, pageScope: scope, eventLimit: MAX_TEACH_EVENTS,
@@ -91,7 +114,7 @@ The initial recorder is limited to the top frame and a single document. It NEVER
 
       if (action === "stop") {
         if (!recordingId || recordingId.length > 128) throw new ToolExecutionError("TEACH_RECORDING_ID_REQUIRED", "Stop needs the recordingId returned by start.");
-        const result = await inject(target, stopTeachCapture, [recordingId], signal);
+        const result = await invokePage<PageStop>(target, "stop", [recordingId], signal);
         if (!result.ok || !result.recording) throw new ToolExecutionError("TEACH_RECORDING_NOT_FOUND", "Recording expired or the page navigated. Start again.");
         try {
           const compiled = compileTeachRecording(result.recording);
@@ -125,7 +148,7 @@ The initial recorder is limited to the top frame and a single document. It NEVER
       const results: Array<{ stepId: string; action: string; code: string; verified: boolean }> = [];
       for (const step of workflow.steps) {
         assertActive(signal);
-        const operation = await inject(target, operateTeachStep,
+        const operation = await invokePage<PageStep>(target, "step",
           [{ pageScope: workflow.pageScope, step, value: step.parameter ? inputs[step.parameter] : undefined, execute: action === "execute" }], signal);
         results.push({ stepId: step.id, action: step.action, code: operation.code, verified: operation.verified });
         if (!operation.ok) return { ok: false, action, stoppedAt: step.id, code: operation.code, results,

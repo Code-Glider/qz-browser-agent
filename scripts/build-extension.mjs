@@ -35,6 +35,7 @@ export const EXTENSION_ENTRIES = Object.freeze([
   { path: "content/mcp-connect-bridge.js", format: "iife" },
   { path: "content/article-extractor.js", format: "iife" },
   { path: "content/run-script-tool-bridge.js", format: "iife" },
+  { path: "content/teach-mode-runtime.js", format: "iife" },
   { path: "content/content-script.js", format: "iife" },
   { path: "runner-sandbox.js", format: "iife" },
   { path: "shared/mathjax-config.js", format: "iife" },

@@ -1,4 +1,14 @@
-import type { TeachStep } from "./workflow.js";
+/** This module runs only in the DOM isolated world, never in qz's background worker. */
+interface TeachStep {
+  id: string;
+  action: "click" | "fill" | "select" | "press" | "scroll";
+  selector: string;
+  tag: string;
+  parameter?: string;
+  key?: "Enter" | "Escape";
+  scrollY?: number;
+  verification: "value_equals" | "scroll_position" | "dispatch_only";
+}
 
 interface ActiveTeachCapture {
   recordingId: string;
@@ -12,7 +22,7 @@ interface ActiveTeachCapture {
  * Chrome serializes this function into the isolated world. Keep all runtime helpers inside it;
  * imports, module variables, and privileged browser APIs are intentionally unavailable there.
  */
-export function startTeachCapture(recordingId: string, maxEvents: number) {
+function startTeachCapture(recordingId: string, maxEvents: number) {
   const container = globalThis as typeof globalThis & { __qzTeachCaptureV1?: ActiveTeachCapture };
   container.__qzTeachCaptureV1?.dispose();
   if (window.top !== window) return { ok: false, code: "TOP_FRAME_REQUIRED" };
@@ -128,7 +138,7 @@ export function startTeachCapture(recordingId: string, maxEvents: number) {
 }
 
 /** Stop and remove the listeners in the same isolated document in which they were installed. */
-export function stopTeachCapture(recordingId: string) {
+function stopTeachCapture(recordingId: string) {
   const container = globalThis as typeof globalThis & { __qzTeachCaptureV1?: ActiveTeachCapture };
   const state = container.__qzTeachCaptureV1;
   if (!state || state.recordingId !== recordingId) return { ok: false, code: "RECORDING_NOT_FOUND" };
@@ -143,7 +153,7 @@ export function stopTeachCapture(recordingId: string) {
 }
 
 /** One bounded replay operation. The caller validates the workflow and checks cancellation after each step. */
-export function operateTeachStep(input: { pageScope: string; step: TeachStep; value?: string; execute: boolean }) {
+function operateTeachStep(input: { pageScope: string; step: TeachStep; value?: string; execute: boolean }) {
   const { pageScope, step, value, execute } = input;
   if (`${location.origin}${location.pathname}` !== pageScope) {
     return { ok: false, code: "PAGE_SCOPE_CHANGED", verified: false };
@@ -219,3 +229,18 @@ export function operateTeachStep(input: { pageScope: string; step: TeachStep; va
   // Synthetic KeyboardEvents cannot reliably reproduce trusted keyboard input.
   return { ok: false, code: "KEYBOARD_REPLAY_NOT_SUPPORTED", verified: false };
 }
+
+// The build emits this as a classic content asset. A background capability injects the asset,
+// then calls these bounded functions through a second isolated-world injection.
+const teachRuntimeGlobal = globalThis as typeof globalThis & {
+  __qzTeachRuntimeV1?: {
+    start: typeof startTeachCapture;
+    stop: typeof stopTeachCapture;
+    step: typeof operateTeachStep;
+  };
+};
+teachRuntimeGlobal.__qzTeachRuntimeV1 = {
+  start: startTeachCapture,
+  stop: stopTeachCapture,
+  step: operateTeachStep,
+};

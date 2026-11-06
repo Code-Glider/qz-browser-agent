@@ -3,9 +3,9 @@ import { expect, test } from './fixtures.mjs';
 test('real human-like form interaction creates a redacted workflow and stops listeners', async ({ page }) => {
   await page.goto('/__test_health');
   await page.setContent('<input id="name" type="text" /><button id="toggle" type="button">Toggle</button>');
+  await page.addScriptTag({ url: '/extension/content/teach-mode-runtime.js' });
   const start = await page.evaluate(async () => {
-    const { startTeachCapture } = await import('/extension/capabilities/teach-mode/page-runtime.js');
-    return startTeachCapture('demo-1', 120);
+    return globalThis.__qzTeachRuntimeV1.start('demo-1', 120);
   });
   expect(start.ok).toBe(true);
 
@@ -13,8 +13,7 @@ test('real human-like form interaction creates a redacted workflow and stops lis
   await page.locator('#toggle').click();
 
   const stopped = await page.evaluate(async () => {
-    const { stopTeachCapture } = await import('/extension/capabilities/teach-mode/page-runtime.js');
-    return stopTeachCapture('demo-1');
+    return globalThis.__qzTeachRuntimeV1.stop('demo-1');
   });
   expect(stopped.ok).toBe(true);
   expect(stopped.recording.events.map(e => e.action)).toEqual(['fill', 'click']);
@@ -28,8 +27,7 @@ test('real human-like form interaction creates a redacted workflow and stops lis
 
   await page.locator('#toggle').click();
   const stoppedAgain = await page.evaluate(async () => {
-    const { stopTeachCapture } = await import('/extension/capabilities/teach-mode/page-runtime.js');
-    return stopTeachCapture('demo-1');
+    return globalThis.__qzTeachRuntimeV1.stop('demo-1');
   });
   expect(stoppedAgain.code).toBe('RECORDING_NOT_FOUND');
 });
@@ -37,8 +35,9 @@ test('real human-like form interaction creates a redacted workflow and stops lis
 test('replay validates fields and blocks submit buttons and wrong pages', async ({ page }) => {
   await page.goto('/__test_health');
   await page.setContent('<input id="city" type="text" /><button id="submit" type="submit">Submit</button>');
+  await page.addScriptTag({ url: '/extension/content/teach-mode-runtime.js' });
   const cases = await page.evaluate(async () => {
-    const { operateTeachStep } = await import('/extension/capabilities/teach-mode/page-runtime.js');
+    const operateTeachStep = globalThis.__qzTeachRuntimeV1.step;
     const pageScope = `${location.origin}${location.pathname}`;
     const fill = { id: 'step_001', action: 'fill', selector: '#city', tag: 'input', parameter: 'field_1', verification: 'value_equals' };
     const submit = { id: 'step_002', action: 'click', selector: '#submit', tag: 'button', verification: 'dispatch_only' };
@@ -60,18 +59,15 @@ test('replay validates fields and blocks submit buttons and wrong pages', async 
 test('password-like input never becomes a reusable workflow', async ({ page }) => {
   await page.goto('/__test_health');
   await page.setContent('<input id="api_key" type="text" /><input id="password" type="password"/>');
+  await page.addScriptTag({ url: '/extension/content/teach-mode-runtime.js' });
   await page.evaluate(async () => {
-    const { startTeachCapture } = await import('/extension/capabilities/teach-mode/page-runtime.js');
-    return startTeachCapture('sensitive-1', 120);
+    return globalThis.__qzTeachRuntimeV1.start('sensitive-1', 120);
   });
   await page.locator('#api_key').fill('do-not-record');
   await page.locator('#password').fill('also-do-not-record');
   const result = await page.evaluate(async () => {
-    const [{ stopTeachCapture }, { compileTeachRecording }] = await Promise.all([
-      import('/extension/capabilities/teach-mode/page-runtime.js'),
-      import('/extension/capabilities/teach-mode/workflow.js'),
-    ]);
-    const stopped = stopTeachCapture('sensitive-1');
+    const { compileTeachRecording } = await import('/extension/capabilities/teach-mode/workflow.js');
+    const stopped = globalThis.__qzTeachRuntimeV1.stop('sensitive-1');
     let rejected = false;
     try { compileTeachRecording(stopped.recording); } catch { rejected = true; }
     return { stopped, rejected };
