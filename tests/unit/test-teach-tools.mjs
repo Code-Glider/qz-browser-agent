@@ -61,3 +61,23 @@ test('install rejects duplicate Skill names before any write', async () => {
     assert.equal(calls.saved.length, 0);
   } finally { if (previousChrome === undefined) delete globalThis.chrome; else globalThis.chrome = previousChrome; }
 });
+
+test('verified form effects never masquerade as independently verified business outcomes', async () => {
+  const fill = compileTeachRecording({
+    version: 1, recordingId: 'sample', pageScope: 'https://example.test/settings?token=PRIVATE',
+    queryDigest: createHash('sha256').update('?token=PRIVATE').digest('hex'), droppedEvents: 0,
+    events: [{ action: 'fill', selector: '#city', tag: 'input', atMs: 0 }],
+  }).workflow;
+  globalThis.chrome = {
+    tabs: chromeFixture.tabs,
+    scripting: { executeScript: async input => input.files ? [{}] : [{ result: { ok: true, code: 'OK', verified: true } }] },
+  };
+  try {
+    const { tool } = createHarness();
+    const result = await tool.execute({ action: 'execute', tabId: 19, workflowJson: JSON.stringify(fill),
+      inputsJson: '{"field_1":"Toronto"}' }, new AbortController().signal, { workingTabId: 19, sessionId: 'session-1' });
+    assert.equal(result.ok, true);
+    assert.equal(result.stepEffectsVerified, true);
+    assert.equal(result.outcomeVerified, false);
+  } finally { if (previousChrome === undefined) delete globalThis.chrome; else globalThis.chrome = previousChrome; }
+});

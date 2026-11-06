@@ -40,7 +40,8 @@ sharing. Selectors may contain stable element IDs and `data-testid` values.
 - Replay rejects mismatched URLs, invalid targets, absent required input values, submit buttons,
   links, and synthetic keyboard actions. It stops at the first error.
 - A successful `.click()` merely means the browser dispatched an event. It does not prove that an
-  external action succeeded. `outcomeVerified` is false whenever click actions are involved.
+  external action succeeded. `outcomeVerified` remains false in G0 even if every field or scroll
+  effect was observed; that is separately reported as `stepEffectsVerified`.
 - Use qz's existing page/Session safety checks. Avoid credentials in `inputsJson` until a separate
   secret-reference binding and human approval mechanism exist.
 

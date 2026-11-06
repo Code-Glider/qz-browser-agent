@@ -96,7 +96,7 @@ The initial recorder is limited to the top frame and a single document. It NEVER
       const scope = safePageScope(tab.url);
       const queryDigest = await teachQueryDigest(tab.url);
       assertActive(signal);
-      if (action !== "install") await installPageRuntime(target, signal);
+      if (action === "start" || action === "stop") await installPageRuntime(target, signal);
 
       if (action === "start") {
         const id = crypto.randomUUID();
@@ -172,6 +172,7 @@ The initial recorder is limited to the top frame and a single document. It NEVER
         }
       }
 
+      await installPageRuntime(target, signal);
       const results: Array<{ stepId: string; action: string; code: string; verified: boolean }> = [];
       for (const step of workflow.steps) {
         assertActive(signal);
@@ -186,9 +187,9 @@ The initial recorder is limited to the top frame and a single document. It NEVER
         if (!operation.ok) return { ok: false, action, stoppedAt: step.id, code: operation.code, results,
           completed: results.length - 1, total: workflow.steps.length, outcomeVerified: false };
       }
-      const outcomeVerified = action === "execute" && results.length > 0 && results.every(result => result.verified);
-      return { ok: true, action, total: workflow.steps.length, results, outcomeVerified,
-        note: outcomeVerified ? "Field/scroll checks passed; verify the end-to-end task outcome separately."
+      const stepEffectsVerified = action === "execute" && results.length > 0 && results.every(result => result.verified);
+      return { ok: true, action, total: workflow.steps.length, results, stepEffectsVerified, outcomeVerified: false,
+        note: stepEffectsVerified ? "All directly observable step effects passed; there is no independent end-to-end verifier yet."
           : "Selector checks or event dispatch completed. End-to-end task outcome is NOT verified." };
     },
   });
