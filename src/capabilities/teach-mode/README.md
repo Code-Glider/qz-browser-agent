@@ -13,10 +13,13 @@ desktop recorder or a production-grade autonomous web transaction engine.
    one-time codes, or API-key input fields in this demonstration.
 4. Ask the agent to call `teach_workflow` with `{ "action": "stop", "recordingId": "..." }`,
    using the exact ID returned by `start`.
-5. Review the returned `workflow` object and save it somewhere under your control. The extension
-   does not automatically persist or install the workflow as a Skill in G0.
+5. Review the returned `workflow` object. To persist it in qz's existing Skill repository, call
+   `teach_workflow` with `action: "install"`, `workflowJson` (serialized workflow), and a unique
+   `skillName` such as `teach-update-contact`. This explicit action creates a site-scoped Skill
+   without overwriting existing names. You can also save the workflow JSON independently.
 6. On the same page, call `teach_workflow` with `action: "preview"` and `workflowJson` equal to the
-   serialized workflow object; inspect selector matches before replay.
+   serialized workflow object; inspect selector matches before replay. An installed Skill contains
+   its own serialized workflow and replay instructions.
 7. When explicitly requested by the user, call `teach_workflow` with `action: "execute"`,
    `workflowJson`, and `inputsJson` such as `{ "field_1": "Example", "field_2": "option_id" }`.
 

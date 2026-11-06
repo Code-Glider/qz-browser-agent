@@ -1,5 +1,5 @@
 import type { ToolContext, ToolExtensionAPI } from "#sdk/background";
-import { MAX_TEACH_EVENTS, compileTeachRecording, safePageScope, validateTeachInputs, validateTeachWorkflow } from "./workflow.js";
+import { MAX_TEACH_EVENTS, compileTeachRecording, makeTeachSkillContent, safePageScope, validateTeachInputs, validateTeachWorkflow } from "./workflow.js";
 
 /** Runs inside Chrome's isolated world. Do not add captured variables or background imports. */
 function invokeTeachRuntime(operation: "start" | "stop" | "step", args: unknown[]): unknown {
@@ -68,29 +68,33 @@ export default function registerTeachTools(qz: ToolExtensionAPI): void {
 start: listen for the user's real clicks, non-secret form edits, and scrolls on the current document;
 stop: stop recording using the returned recordingId, then return a redacted versioned trace and reusable workflow;
 preview: check selectors and page scope without making page changes;
+install: save the reviewed workflow as a site-scoped native qz Skill without overwriting an existing name;
 execute: replay a previously reviewed workflow with explicit input parameters and stop on the first failed check.
 The initial recorder is limited to the top frame and a single document. It NEVER stores typed values. Password/OTP and other sensitive fields mark the recording incomplete. Link navigation, form submission, and trusted keyboard replay are unsupported and never counted as success. Do not execute a workflow without the user's explicit request to replay it.`,
     get parameters() { return {
       type: "object",
       properties: {
-        action: { type: "string", enum: ["start", "stop", "preview", "execute"], description: "Which Teach Mode operation to perform." },
+        action: { type: "string", enum: ["start", "stop", "preview", "install", "execute"], description: "Which Teach Mode operation to perform." },
         tabId: { type: "number", description: "Optional task-owned browser tab ID; defaults to the current session's working tab." },
         recordingId: { type: "string", description: "Recording ID returned by start; required to stop that same recording." },
         workflowJson: { type: "string", description: "The versioned workflow object serialized as JSON, for preview and execute." },
         inputsJson: { type: "string", description: "A JSON object mapping field_1, field_2, etc. to user-provided values. Required for form replay." },
+        skillName: { type: "string", description: "For install: a unique lower-case name starting with teach-, e.g. teach-update-contact." },
       },
       required: ["action"],
     } as const; },
     page: "owned",
     timeout: { defaultMs: 60_000, maxMs: 180_000 },
-    execute: async ({ action, tabId, recordingId, workflowJson, inputsJson }, signal, context = {}) => {
+    effects: (_args, result: unknown) => result && typeof result === "object" && "installed" in result && result.installed === true
+      ? [{ type: "skills.changed" }] : [],
+    execute: async ({ action, tabId, recordingId, workflowJson, inputsJson, skillName }, signal, context = {}) => {
       const target = targetTab(context, tabId);
       assertActive(signal);
       await qz.assertTabAllowed(target, { sessionId: context.sessionId, runId: context.runId, operation: "teach_workflow" });
       assertActive(signal);
       const tab = await chrome.tabs.get(target);
       const scope = safePageScope(tab.url);
-      await installPageRuntime(target, signal);
+      if (action !== "install") await installPageRuntime(target, signal);
 
       if (action === "start") {
         const id = crypto.randomUUID();
@@ -134,6 +138,25 @@ The initial recorder is limited to the top frame and a single document. It NEVER
       }
       if (workflow.pageScope !== scope) {
         throw new ToolExecutionError("TEACH_PAGE_SCOPE_MISMATCH", "The current page does not match the recorded URL origin and path.");
+      }
+
+      if (action === "install") {
+        let content: string;
+        try { content = makeTeachSkillContent(skillName || "", workflow); }
+        catch (error) {
+          throw new ToolExecutionError("TEACH_INVALID_SKILL_NAME", error instanceof Error ? error.message : "Invalid Skill name.");
+        }
+        if (!workflow.steps.length) throw new ToolExecutionError("TEACH_EMPTY_WORKFLOW", "A Skill needs at least one recorded step.");
+        const refreshRegistry = qz.getToolRuntimeDependencies(context)?.skills?.refreshRegistry;
+        if (!refreshRegistry) throw new ToolExecutionError("SKILL_REGISTRY_RUNTIME_UNAVAILABLE", "The native Skill repository is unavailable.");
+        const exists = await qz.skills.load(skillName);
+        if (exists) throw new ToolExecutionError("TEACH_SKILL_EXISTS", "A Skill already has that name; select another.");
+        assertActive(signal);
+        const saved = await qz.skills.save(skillName, `Replay the reviewed demonstration on ${new URL(scope).hostname}.`, content,
+          { displayName: skillName, scope: "site", domains: [new URL(scope).hostname] });
+        await qz.publishSkillRegistryChange("teach_workflow_install", { skillName: saved.name, previousSkillName: "" }, refreshRegistry);
+        return { ok: true, action, installed: true, skillName: saved.name, scope: "site", pageScope: workflow.pageScope,
+          note: "Skill saved in qz. It is discoverable on this site; execute still requires an explicit user request." };
       }
 
       let inputs: Record<string, string> = {};
