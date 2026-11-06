@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  MAX_TEACH_EVENTS, compileTeachRecording, makeTeachSkillContent, safePageScope, validateTeachInputs, validateTeachWorkflow,
+  MAX_TEACH_EVENTS, compileTeachRecording, makeTeachSkillContent, safePageScope, teachQueryDigest, validateTeachInputs, validateTeachWorkflow,
 } from '../../src/capabilities/teach-mode/workflow.ts';
 
 const example = () => ({
-  version: 1, recordingId: 'rec-01', pageScope: 'https://example.test/new?api_key=SHOULD_NOT_LEAK#private',
+  version: 1, recordingId: 'rec-01', pageScope: 'https://example.test/new?api_key=SHOULD_NOT_LEAK#private', queryDigest: 'a'.repeat(64),
   droppedEvents: 0,
   events: [
     { action: 'click', selector: '#edit', tag: 'BUTTON', atMs: 10, innerHTML: '<p>secret</p>' },
@@ -74,6 +74,17 @@ test('page scope normalizes query/fragment and rejects privileged or credentiale
   for (const url of ['chrome://extensions/', 'file:///home/secret', 'https://user:pass@demo.test/']) {
     assert.throws(() => safePageScope(url));
   }
+});
+
+test('query fingerprints prevent confusing URLs that share a path without leaking query values', async () => {
+  const base = 'https://demo.test/settings';
+  const first = await teachQueryDigest(`${base}?account=alice&token=SECRET`);
+  const second = await teachQueryDigest(`${base}?account=bob&token=SECRET`);
+  const same = await teachQueryDigest(`${base}?account=alice&token=SECRET#ignored`);
+  assert.match(first, /^[a-f0-9]{64}$/);
+  assert.equal(first, same);
+  assert.notEqual(first, second);
+  assert.equal(JSON.stringify({ first }).includes('SECRET'), false);
 });
 
 test('non-monotonic events and malformed selectors are rejected before workflow creation', () => {

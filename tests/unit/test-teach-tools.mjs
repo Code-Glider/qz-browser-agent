@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { createHash } from 'node:crypto';
 import registerTeachTools from '../../src/capabilities/teach-mode/tools.ts';
 import { compileTeachRecording } from '../../src/capabilities/teach-mode/workflow.ts';
 
 const workflow = compileTeachRecording({
-  version: 1, recordingId: 'sample', pageScope: 'https://example.test/settings?token=PRIVATE', droppedEvents: 0,
+  version: 1, recordingId: 'sample', pageScope: 'https://example.test/settings?token=PRIVATE',
+  queryDigest: createHash('sha256').update('?token=PRIVATE').digest('hex'), droppedEvents: 0,
   events: [{ action: 'click', selector: '#toggle', tag: 'button', atMs: 0 }],
 }).workflow;
 

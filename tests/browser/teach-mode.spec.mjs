@@ -5,7 +5,8 @@ test('real human-like form interaction creates a redacted workflow and stops lis
   await page.setContent('<input id="name" type="text" /><button id="toggle" type="button">Toggle</button>');
   await page.addScriptTag({ url: '/extension/content/teach-mode-runtime.js' });
   const start = await page.evaluate(async () => {
-    return globalThis.__qzTeachRuntimeV1.start('demo-1', 120);
+    const { teachQueryDigest } = await import('/extension/capabilities/teach-mode/workflow.js');
+    return globalThis.__qzTeachRuntimeV1.start('demo-1', 120, await teachQueryDigest(location.href));
   });
   expect(start.ok).toBe(true);
 
@@ -61,7 +62,8 @@ test('password-like input never becomes a reusable workflow', async ({ page }) =
   await page.setContent('<input id="api_key" type="text" /><input id="password" type="password"/>');
   await page.addScriptTag({ url: '/extension/content/teach-mode-runtime.js' });
   await page.evaluate(async () => {
-    return globalThis.__qzTeachRuntimeV1.start('sensitive-1', 120);
+    const { teachQueryDigest } = await import('/extension/capabilities/teach-mode/workflow.js');
+    return globalThis.__qzTeachRuntimeV1.start('sensitive-1', 120, await teachQueryDigest(location.href));
   });
   await page.locator('#api_key').fill('do-not-record');
   await page.locator('#password').fill('also-do-not-record');

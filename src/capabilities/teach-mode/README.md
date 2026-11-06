@@ -24,8 +24,10 @@ desktop recorder or a production-grade autonomous web transaction engine.
    `workflowJson`, and `inputsJson` such as `{ "field_1": "Example", "field_2": "option_id" }`.
 
 Workflow fields are parameters by design. **No typed, pasted, or selected values are recorded**;
-they must be supplied for execution. Page URLs exclude query strings and fragments. Selectors may
-contain stable element IDs and `data-testid` values. Review traces before sharing.
+they must be supplied for execution. Page URLs exclude query strings and fragments. A SHA-256
+fingerprint of the URL query is retained to reject workflows on a different query-specific context;
+the fingerprint can still disclose a low-entropy query through guessing, so review traces before
+sharing. Selectors may contain stable element IDs and `data-testid` values.
 
 ## Boundaries and failure behavior
 

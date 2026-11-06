@@ -18,6 +18,8 @@ export interface TeachRecording {
   version: 1;
   recordingId: string;
   pageScope: string;
+  /** SHA-256 of the URL query, preventing cross-account query confusion without storing raw tokens. */
+  queryDigest: string;
   events: TeachEvent[];
   droppedEvents: number;
 }
@@ -38,6 +40,7 @@ export interface TeachWorkflow {
   kind: "qz.teach.workflow";
   version: 1;
   pageScope: string;
+  queryDigest: string;
   steps: TeachStep[];
   /** A click/keypress dispatch is not proof of an external business outcome. */
   verificationLimitations: string[];
@@ -60,6 +63,19 @@ export function safePageScope(value: unknown): string {
     throw new Error("Only ordinary HTTP(S) pages can be recorded");
   }
   return `${url.origin}${url.pathname}`;
+}
+
+export async function teachQueryDigest(value: unknown): Promise<string> {
+  const text = string(value, "page URL", 2048);
+  safePageScope(text);
+  const data = new TextEncoder().encode(new URL(text).search);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function validatedQueryDigest(value: unknown): string {
+  if (typeof value !== "string" || !/^[a-f0-9]{64}$/.test(value)) throw new Error("Invalid query fingerprint");
+  return value;
 }
 
 function validatedAction(raw: unknown): TeachAction {
@@ -106,6 +122,7 @@ export function compileTeachRecording(input: unknown): { trace: TeachRecording; 
   if (raw.version !== TEACH_TRACE_VERSION) throw new Error("Unsupported recording version");
   const recordingId = string(raw.recordingId, "recordingId", 128);
   const pageScope = safePageScope(raw.pageScope);
+  const queryDigest = validatedQueryDigest(raw.queryDigest);
   if (!Array.isArray(raw.events) || raw.events.length > MAX_TEACH_EVENTS) throw new Error("Recording event limit exceeded");
   if (raw.droppedEvents !== 0) throw new Error("Recording overflowed; demonstrate a shorter task");
 
@@ -162,9 +179,9 @@ export function compileTeachRecording(input: unknown): { trace: TeachRecording; 
   // Re-number after coalescing to maintain an unambiguous portable sequence.
   for (const [index, step] of steps.entries()) step.id = `step_${String(index + 1).padStart(3, "0")}`;
   return {
-    trace: { version: 1, recordingId, pageScope, events, droppedEvents: 0 },
+    trace: { version: 1, recordingId, pageScope, queryDigest, events, droppedEvents: 0 },
     workflow: {
-      kind: "qz.teach.workflow", version: 1, pageScope, steps,
+      kind: "qz.teach.workflow", version: 1, pageScope, queryDigest, steps,
       verificationLimitations: ["Click and key dispatches require external outcome checks", "Single-tab, top-frame, same-document replay only"],
     },
   };
@@ -175,6 +192,7 @@ export function validateTeachWorkflow(input: unknown): TeachWorkflow {
   const raw = object(input);
   if (raw.kind !== "qz.teach.workflow" || raw.version !== 1) throw new Error("Unsupported workflow format");
   const pageScope = safePageScope(raw.pageScope);
+  const queryDigest = validatedQueryDigest(raw.queryDigest);
   if (!Array.isArray(raw.steps) || raw.steps.length > MAX_TEACH_STEPS) throw new Error("Invalid workflow length");
   const steps: TeachStep[] = raw.steps.map((item: unknown, index: number) => {
     const source = object(item);
@@ -195,7 +213,7 @@ export function validateTeachWorkflow(input: unknown): TeachWorkflow {
     if (action === "scroll") step.scrollY = validatedScroll(source.scrollY);
     return step;
   });
-  return { kind: "qz.teach.workflow", version: 1, pageScope, steps,
+  return { kind: "qz.teach.workflow", version: 1, pageScope, queryDigest, steps,
     verificationLimitations: ["Click and key dispatches require external outcome checks", "Single-tab, top-frame, same-document replay only"] };
 }
 

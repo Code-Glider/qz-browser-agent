@@ -1,5 +1,5 @@
 import type { ToolContext, ToolExtensionAPI } from "#sdk/background";
-import { MAX_TEACH_EVENTS, compileTeachRecording, makeTeachSkillContent, safePageScope, validateTeachInputs, validateTeachWorkflow } from "./workflow.js";
+import { MAX_TEACH_EVENTS, compileTeachRecording, makeTeachSkillContent, safePageScope, teachQueryDigest, validateTeachInputs, validateTeachWorkflow } from "./workflow.js";
 
 /** Runs inside Chrome's isolated world. Do not add captured variables or background imports. */
 function invokeTeachRuntime(operation: "start" | "stop" | "step", args: unknown[]): unknown {
@@ -94,12 +94,14 @@ The initial recorder is limited to the top frame and a single document. It NEVER
       assertActive(signal);
       const tab = await chrome.tabs.get(target);
       const scope = safePageScope(tab.url);
+      const queryDigest = await teachQueryDigest(tab.url);
+      assertActive(signal);
       if (action !== "install") await installPageRuntime(target, signal);
 
       if (action === "start") {
         const id = crypto.randomUUID();
         let result: PageStart;
-        try { result = await invokePage<PageStart>(target, "start", [id, MAX_TEACH_EVENTS], signal); }
+        try { result = await invokePage<PageStart>(target, "start", [id, MAX_TEACH_EVENTS, queryDigest], signal); }
         catch (error) {
           // A cancelled injection may already have installed listeners. Revoke them explicitly.
           await chrome.scripting.executeScript({ target: { tabId: target, allFrames: false },
@@ -122,7 +124,9 @@ The initial recorder is limited to the top frame and a single document. It NEVER
         if (!result.ok || !result.recording) throw new ToolExecutionError("TEACH_RECORDING_NOT_FOUND", "Recording expired or the page navigated. Start again.");
         try {
           const compiled = compileTeachRecording(result.recording);
-          if (compiled.trace.pageScope !== scope) throw new Error("The page changed while recording");
+          if (compiled.trace.pageScope !== scope || compiled.trace.queryDigest !== queryDigest) {
+            throw new Error("The page or its URL query changed while recording");
+          }
           return { ok: true, action, recordingId, ...compiled,
             note: "Review and save the workflow object. Supply field_N inputs explicitly for replay." };
         } catch (error) {
@@ -136,8 +140,8 @@ The initial recorder is limited to the top frame and a single document. It NEVER
         if (error instanceof ToolExecutionError) throw error;
         throw new ToolExecutionError("TEACH_INVALID_WORKFLOW", error instanceof Error ? error.message : "Invalid workflow.");
       }
-      if (workflow.pageScope !== scope) {
-        throw new ToolExecutionError("TEACH_PAGE_SCOPE_MISMATCH", "The current page does not match the recorded URL origin and path.");
+      if (workflow.pageScope !== scope || workflow.queryDigest !== queryDigest) {
+        throw new ToolExecutionError("TEACH_PAGE_SCOPE_MISMATCH", "The current page does not match the recorded URL origin, path, and query fingerprint.");
       }
 
       if (action === "install") {
@@ -171,6 +175,11 @@ The initial recorder is limited to the top frame and a single document. It NEVER
       const results: Array<{ stepId: string; action: string; code: string; verified: boolean }> = [];
       for (const step of workflow.steps) {
         assertActive(signal);
+        const currentTab = await chrome.tabs.get(target);
+        if (safePageScope(currentTab.url) !== scope || await teachQueryDigest(currentTab.url) !== queryDigest) {
+          return { ok: false, action, stoppedAt: step.id, code: "TEACH_PAGE_SCOPE_CHANGED", results,
+            completed: results.length, total: workflow.steps.length, outcomeVerified: false };
+        }
         const operation = await invokePage<PageStep>(target, "step",
           [{ pageScope: workflow.pageScope, step, value: step.parameter ? inputs[step.parameter] : undefined, execute: action === "execute" }], signal);
         results.push({ stepId: step.id, action: step.action, code: operation.code, verified: operation.verified });

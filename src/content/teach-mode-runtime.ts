@@ -13,6 +13,7 @@ interface TeachStep {
 interface ActiveTeachCapture {
   recordingId: string;
   pageScope: string;
+  queryDigest: string;
   events: Array<Record<string, unknown>>;
   droppedEvents: number;
   dispose(): void;
@@ -22,14 +23,15 @@ interface ActiveTeachCapture {
  * Chrome serializes this function into the isolated world. Keep all runtime helpers inside it;
  * imports, module variables, and privileged browser APIs are intentionally unavailable there.
  */
-function startTeachCapture(recordingId: string, maxEvents: number) {
+function startTeachCapture(recordingId: string, maxEvents: number, queryDigest: string) {
   const container = globalThis as typeof globalThis & { __qzTeachCaptureV1?: ActiveTeachCapture };
   container.__qzTeachCaptureV1?.dispose();
   if (window.top !== window) return { ok: false, code: "TOP_FRAME_REQUIRED" };
   if (!/^https?:$/.test(location.protocol)) return { ok: false, code: "UNSUPPORTED_PAGE" };
+  if (!/^[a-f0-9]{64}$/.test(queryDigest)) return { ok: false, code: "INVALID_QUERY_FINGERPRINT" };
 
   const state: ActiveTeachCapture = {
-    recordingId, pageScope: `${location.origin}${location.pathname}`, events: [], droppedEvents: 0,
+    recordingId, pageScope: `${location.origin}${location.pathname}`, queryDigest, events: [], droppedEvents: 0,
     dispose() { /* assigned after listeners are constructed */ },
   };
   const start = performance.now();
@@ -146,7 +148,7 @@ function stopTeachCapture(recordingId: string) {
   delete container.__qzTeachCaptureV1;
   return {
     ok: true, recording: {
-      version: 1, recordingId: state.recordingId, pageScope: state.pageScope,
+      version: 1, recordingId: state.recordingId, pageScope: state.pageScope, queryDigest: state.queryDigest,
       events: state.events, droppedEvents: state.droppedEvents,
     },
   };
